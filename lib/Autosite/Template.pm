@@ -9,7 +9,7 @@ use Autosite::Error;
 use IO::File;
 
 has 'cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
-has 'file'  => ( is => 'rw', isa => 'Str' );
+has 'file' => ( is => 'rw', isa => 'Str' );
 
 sub render {
 
@@ -46,9 +46,37 @@ sub get_template_contents {
         Autosite::Error->throw('missing file parameter');
     }
 
-    my $template = IO::File->new();
-    $template->open( $self->file, 'r' );
+    return $self->_open_template;
 
+}
+
+# private 
+
+sub _from_cache {
+    
+    my $self = shift;
+    
+    if ( defined $self->cache->{ $self->file }
+        and $self->cache->{ $self->file } )
+    {
+        return $self->cache->{ $self->file };
+    }
+    
+}
+
+sub _open_template {
+
+    my $self = shift;
+
+    if ( my $content = $self->_from_cache ) {
+        return $content;
+    }
+
+    my $template = IO::File->new();
+
+    if ( not $template->open( $self->file, 'r' ) ) {
+        Autosite::Error->throw( 'Can\'t open file ' . $self->file );
+    }
     if ( not $template ) {
         Autosite::Error->throw('IO error');
     }
@@ -57,11 +85,11 @@ sub get_template_contents {
     }
 
     local ($/) = undef;
-    my $template_output = <$template>;
-    
-    $self->cache->{$self->file} = $template_output;
+    my $contents = <$template>;
 
-    return $template_output;
+    $self->cache->{ $self->file } = $contents;
+
+    return $contents;
 
 }
 
