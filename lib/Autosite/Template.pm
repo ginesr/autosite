@@ -14,18 +14,22 @@ use 5.012_001;
 our $VERSION = '0.01';
 
 has 'cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
+has 'stash' => (
+    is      => 'rw',
+    isa     => 'Maybe[ArrayRef]',
+    default => sub { return [] },
+    lazy    => 1
+);
 has 'file' => ( is => 'rw', isa => 'Str' );
 has 'config' => ( is => 'rw', isa => 'Autosite::Config', required => 0 );
 
 sub render {
 
-    my $self        = shift;
-    my $namespace   = shift;
-    my $export_vars = shift;
-    my $remove_tags = shift;
-    my $output_to   = shift;    # file handle, string
-
-    my $template_output = $self->get_template_contents();
+    my $self         = shift;
+    my $namespace    = shift;
+    my $export_stash = shift || [];
+    my $remove_tags  = shift;
+    my $output_to    = shift;         # file handle, string
 
     if ( not $namespace ) {
         Autosite::Error->throw('missing namespace parameter');
@@ -33,16 +37,51 @@ sub render {
     if ( $namespace and ref($namespace) ne 'HASH' ) {
         Autosite::Error->throw('invalid ref type in namespace');
     }
-
-    foreach ( keys %{$namespace} ) {
-        $namespace->{ uc($_) } =~ s/\$([A-Z_0-9\.]+)/$namespace->{$1}/g;
+    if ( $export_stash and ref($export_stash) ne 'ARRAY' ) {
+        Autosite::Error->throw('invalid ref type in export_stash');
     }
+
+    my $template_output = $self->get_template_contents();
+
+    $namespace = $self->process_namespace($namespace);
+    $namespace = $self->process_stash( $namespace, $export_stash );
 
     $template_output = $self->process_include($template_output);
     $template_output =~ s/\$([A-Z_0-9\.]+)/$namespace->{$1}/g;
 
     return $template_output;
 
+}
+
+sub process_namespace {
+
+    my $self      = shift;
+    my $namespace = shift;
+
+    foreach ( keys %{$namespace} ) {
+        $namespace->{ uc($_) } =~ s/\$([A-Z_0-9\.]+)/$namespace->{$1}/g;
+    }
+
+    return $namespace;
+}
+
+sub process_stash {
+
+    my $self         = shift;
+    my $namespace    = shift;
+    my $export_stash = shift;
+
+    foreach my $exp ( @{$export_stash} ) {
+        foreach my $stashed ( @{ $self->stash } ) {
+            foreach my $key ( keys %{$stashed} ) {
+                if ( $exp eq $key ) {
+                    $namespace->{ uc($exp) } = $stashed->{$key};
+                }
+            }
+        }
+    }
+
+    return $namespace;
 }
 
 sub process_include {
@@ -95,7 +134,7 @@ sub get_template_contents {
 # private
 
 sub _include_comments {
-    
+
     my $self     = shift;
     my $include  = shift;
     my $variable = shift;
