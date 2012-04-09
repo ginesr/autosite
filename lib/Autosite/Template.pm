@@ -6,14 +6,16 @@ use autodie;
 use Moose;
 use Try::Tiny;
 use Autosite::Error;
+use Autosite::String::Trim;
 use IO::File;
+use Data::Dumper qw(Dumper);
 use 5.012_001;
 
 our $VERSION = '0.01';
 
 has 'cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
 has 'file' => ( is => 'rw', isa => 'Str' );
-has 'config' => (is => 'rw', isa => 'Autosite::Config', required => 0);
+has 'config' => ( is => 'rw', isa => 'Autosite::Config', required => 0 );
 
 sub render {
 
@@ -36,52 +38,111 @@ sub render {
         $namespace->{ uc($_) } =~ s/\$([A-Z_0-9\.]+)/$namespace->{$1}/g;
     }
 
+    $template_output = $self->process_include($template_output);
     $template_output =~ s/\$([A-Z_0-9\.]+)/$namespace->{$1}/g;
 
     return $template_output;
 
 }
 
+sub process_include {
+
+    my $self     = shift;
+    my $template = shift;
+    my $includes = {};
+
+    while ( $template =~ m/<!--\s*?{\s*?include:(.*?)}\s*?-->/g ) {
+
+        my $variable = $1;
+
+        # is it a var or a file?
+        if ( $variable =~ /^\$/ ) {
+
+            # look file name in DB
+        }
+
+        $variable = $variable->trim;
+
+        my $include = $self->get_template_contents($variable);
+        $includes->{$variable} =
+          $self->_include_comments( $include, $variable );
+
+    }
+
+    foreach ( keys %{$includes} ) {
+        $template =~
+          s/<!--\s*?{\s*?include:\s*?$_\s*?}\s*?-->/$includes->{$_}/gsm;
+    }
+
+    return $template;
+}
+
 sub get_template_contents {
 
     my $self = shift;
+    my $file = shift || $self->file;
 
-    if ( not $self->file ) {
+    $file = $file->trim;
+
+    if ( not $file ) {
         Autosite::Error->throw('missing file parameter');
     }
 
-    return $self->_open_template;
+    return $self->_open_template($file);
 
 }
 
-# private 
+# private
+
+sub _include_comments {
+    
+    my $self     = shift;
+    my $include  = shift;
+    my $variable = shift;
+
+    return qq~<!-- include from $variable -->
+<!-- <$variable> -->
+$include
+<!-- </$variable> -->
+<!-- end include $variable -->
+~;
+
+}
 
 sub _from_cache {
-    
+
     my $self = shift;
-    
-    if ( $self->_with_cache and defined $self->cache->{ $self->file }
-        and $self->cache->{ $self->file } )
+    my $file = shift || $self->file;
+
+    if (    $self->_with_cache
+        and defined $self->cache->{$file}
+        and $self->cache->{$file} )
     {
-        return $self->cache->{ $self->file };
+        return $self->cache->{$file};
     }
-    
+
     return;
-    
+
 }
 
 sub _open_template {
 
     my $self = shift;
+    my $file = shift || $self->file;
 
-    if ( my $content = $self->_from_cache ) {
+    if ( my $dir = $self->_template_dir ) {
+        $dir =~ s/\/$//g;
+        $file = $dir . '/' . $file;
+    }
+
+    if ( my $content = $self->_from_cache($file) ) {
         return $content;
     }
 
     my $template = IO::File->new();
 
-    if ( not $template->open( $self->file, 'r' ) ) {
-        Autosite::Error->throw( 'Can\'t open file ' . $self->file );
+    if ( not $template->open( $file, 'r' ) ) {
+        Autosite::Error->throw( 'Can\'t open file ' . $file );
     }
     if ( not $template ) {
         Autosite::Error->throw('IO error');
@@ -91,26 +152,38 @@ sub _open_template {
     }
 
     local ($/) = undef;
-    my $contents = <$template>;
-    
-    if ( $self->_with_cache ) { 
 
-        $self->cache->{ $self->file } = $contents;
-    
+    my $contents = <$template>;
+
+    if ( $self->_with_cache ) {
+
+        $self->cache->{$file} = $contents;
+
     }
 
     return $contents;
 
 }
 
-sub _with_cache {
-    
+sub _template_dir {
     my $self = shift;
-    
-    if ( not $self->config or ( $self->config and $self->config->templates_cache ) ) {
+
+    if ( defined $self->config and $self->config->templates_dir ) {
+        return $self->config->templates_dir;
+    }
+    return;
+}
+
+sub _with_cache {
+
+    my $self = shift;
+
+    if ( not $self->config
+        or ( $self->config and $self->config->templates_cache ) )
+    {
         return 1;
     }
-    
+
     return 0;
 }
 
