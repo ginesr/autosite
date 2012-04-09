@@ -23,6 +23,7 @@ has 'stash' => (
 has 'file' => ( is => 'rw', isa => 'Str' );
 has 'config' => ( is => 'rw', isa => 'Autosite::Config', required => 0 );
 has '_block_cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
+has '_plugin_cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
 
 sub render {
 
@@ -42,50 +43,94 @@ sub render {
         Autosite::Error->throw('invalid ref type in export_stash');
     }
 
-    my $output = $self->get_template_contents();
+    my $output = $self->get_file_contents();
 
+    $namespace = $self->process_plugins($namespace);
     $namespace = $self->process_namespace($namespace);
     $namespace = $self->process_stash( $namespace, $export_stash );
 
     $output = $self->process_include($output);
     $output = $self->process_blocks( $output, $namespace, $block_tags );
 
-    return $self->replace_in_template($output,$namespace);
+    return $self->replace_in_template( $output, $namespace );
 
 }
 
 sub replace_in_template {
-    
+
     my $self      = shift;
     my $output    = shift || '';
     my $namespace = shift || {};
     my %replace   = ();
 
-    while ($output =~ /\$([A-Z_0-9\.]+)/gsm) {
+    while ( $output =~ /\$([A-Z_0-9\.]+)/gsm ) {
         $replace{$1} = $namespace->{$1} || '';
     }
-    
+
     $output =~ s/\$([A-Z_0-9\.]+)/$replace{$1}/g;
-    
+
     return $output;
+
+}
+
+sub process_plugins {
+
+    my $self      = shift;
+    my $namespace = shift;
+
+    if ( not $self->config ) {
+        return $namespace;
+    }
+
+    my @plugins = split( ',', $self->config->plugins_list );
+    my $dir = $self->_plugins_dir;
+
+    foreach my $p (@plugins) {
+        $namespace = $self->_eval_plugin( $namespace, $p, $dir );
+    }
+
+    return $namespace;
+}
+
+sub _eval_plugin {
+
+    my $self        = shift;
+    my $namespace   = shift;
+    my $plugin_file = shift;
+    my $dir         = shift;
     
+    if ( my $contents = $self->get_file_contents( $plugin_file, $dir ) ) {
+
+        my $code = eval($contents);
+
+        if ($@) {
+            warn $@ . 'in plugin ' . $plugin_file;
+        }
+        else {
+            if ( ref($code) eq 'Autosite::Template::Plugin' and $code->active == 1 ) {
+                $namespace->{ $code->variable } = $code->content;
+            }
+        }
+    }
+
+    return $namespace;
 }
 
 sub read_block {
 
     my $self = shift;
     my $block = shift || '';
-    
-    if (my $block_cached = $self->_block_is_cached($block) ) {
+
+    if ( my $block_cached = $self->_block_is_cached($block) ) {
         return $block_cached;
     }
 
-    my $template_output = $self->get_template_contents();
+    my $template_output = $self->get_file_contents();
     $template_output =~
       s/(.*)(<!--.*(<$block>).-->)(.*)(<!--.*(<\/$block>).-->)(.*)/$4/sm;
-    
+
     $self->_block_cache->{$block} = $template_output;
-    
+
     return $template_output;
 
 }
@@ -97,18 +142,18 @@ sub process_blocks {
     my $namespace       = shift;
     my $blocks          = shift;
 
-    if (not defined $blocks and not defined $self->_block_cache) { 
+    if ( not defined $blocks and not defined $self->_block_cache ) {
         return $template_output;
     }
 
     my @blocks = ();
-    
-    if (defined $blocks) {
-        @blocks = split( ',', $blocks )
+
+    if ( defined $blocks ) {
+        @blocks = split( ',', $blocks );
     }
 
     foreach my $n ( keys %{ $self->_block_cache } ) {
-        if (not exists $namespace->{ uc($n) } ) {
+        if ( not exists $namespace->{ uc($n) } ) {
             $namespace->{ uc($n) } = $self->_block_cache->{$n};
             push @blocks, $n;
         }
@@ -173,7 +218,7 @@ sub process_include {
 
         $variable = $variable->trim;
 
-        my $include = $self->get_template_contents($variable);
+        my $include = $self->get_file_contents($variable);
         $includes->{$variable} =
           $self->_include_comments( $include, $variable );
 
@@ -187,19 +232,43 @@ sub process_include {
     return $template;
 }
 
-sub get_template_contents {
+sub get_file_contents {
 
     my $self = shift;
     my $file = shift || $self->file;
+    my $dir  = shift;
 
     if ( not $file ) {
         Autosite::Error->throw('missing file parameter');
     }
 
     $file = $file->trim;
-    
-    return $self->_open_template($file);
 
+    return $self->_open_template( $file, $dir );
+
+}
+
+sub open_file {
+
+    my $self = shift;
+    my $file = shift;
+
+    my $template = IO::File->new();
+
+    if ( not $template->open( $file, 'r' ) ) {
+        Autosite::Error->throw( 'Can\'t open file ' . $file );
+    }
+    if ( not $template ) {
+        Autosite::Error->throw('IO error');
+    }
+    if ( $template and ref($template) and ref($template) ne 'IO::File' ) {
+        Autosite::Error->throw('invalid template ref');
+    }
+
+    local ($/) = undef;
+
+    my $contents = <$template>;
+    return $contents;
 }
 
 # private
@@ -224,6 +293,8 @@ sub _from_cache {
     my $self = shift;
     my $file = shift || $self->file;
 
+    $file = $self->_prefix_for_cache($file);
+
     if (    $self->_with_cache
         and defined $self->cache->{$file}
         and $self->cache->{$file} )
@@ -239,9 +310,14 @@ sub _open_template {
 
     my $self = shift;
     my $file = shift || $self->file;
+    my $dir  = shift;
 
-    if ( my $dir = $self->_template_dir ) {
-        $dir =~ s/\/$//g;
+    if ( not defined $dir and my $tmpl_dir = $self->_template_dir ) {
+        $tmpl_dir =~ s/\/$//g;
+        $dir = $tmpl_dir;
+    }
+
+    if ($dir) {
         $file = $dir . '/' . $file;
     }
 
@@ -249,33 +325,47 @@ sub _open_template {
         return $content;
     }
 
-    my $template = IO::File->new();
+    my $contents = $self->open_file($file);
 
-    if ( not $template->open( $file, 'r' ) ) {
-        Autosite::Error->throw( 'Can\'t open file ' . $file );
-    }
-    if ( not $template ) {
-        Autosite::Error->throw('IO error');
-    }
-    if ( $template and ref($template) and ref($template) ne 'IO::File' ) {
-        Autosite::Error->throw('invalid template ref');
-    }
-
-    local ($/) = undef;
-
-    my $contents = <$template>;
-
-    if ( $self->_with_cache ) {
-
-        $self->cache->{$file} = $contents;
-
-    }
+    $self->_store_in_cache( $file, $contents );
 
     return $contents;
 
 }
 
+sub _store_in_cache {
+
+    my $self     = shift;
+    my $key      = shift;
+    my $contents = shift;
+
+    if ( $self->_with_cache ) {
+
+        $key = $self->_prefix_for_cache($key);
+        $self->cache->{$key} = $contents;
+
+        return $contents;
+
+    }
+
+    return;
+
+}
+
+sub _prefix_for_cache {
+
+    my $self = shift;
+    my $key  = shift;
+
+    if ( defined $self->config and $self->config->site_prefix ) {
+        return $self->config->site_prefix . '_' . $key;
+    }
+
+    return $key;
+}
+
 sub _template_dir {
+
     my $self = shift;
 
     if ( defined $self->config and $self->config->templates_dir ) {
@@ -298,15 +388,28 @@ sub _with_cache {
 }
 
 sub _block_is_cached {
-    
-    my $self = shift;
+
+    my $self  = shift;
     my $block = shift;
-    
-    if (exists $self->_block_cache->{$block}) {
+
+    if ( exists $self->_block_cache->{$block} ) {
         return $self->_block_cache->{$block};
     }
-    
-    return;    
+
+    return;
+}
+
+sub _plugins_dir {
+    my $self = shift;
+    if ( defined $self->config ) {
+        if ( $self->config->plugins_folder ) {
+            return $self->config->plugins_folder;
+        }
+        if ( $self->config->templates_dir ) {
+            return $self->config->templates_dir;
+        }
+    }
+    return;
 }
 
 1;
