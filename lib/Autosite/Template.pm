@@ -28,8 +28,8 @@ sub render {
     my $self         = shift;
     my $namespace    = shift;
     my $export_stash = shift || [];
-    my $remove_tags  = shift;
-    my $output_to    = shift;         # file handle, string
+    my $block_tags   = shift;
+    my $write_to     = shift;         # file handle, string
 
     if ( not $namespace ) {
         Autosite::Error->throw('missing namespace parameter');
@@ -47,10 +47,44 @@ sub render {
     $namespace = $self->process_stash( $namespace, $export_stash );
 
     $template_output = $self->process_include($template_output);
+    $template_output =
+      $self->process_blocks( $template_output, $namespace, $block_tags );
     $template_output =~ s/\$([A-Z_0-9\.]+)/$namespace->{$1}/g;
 
     return $template_output;
 
+}
+
+sub read_block {
+    
+    my $self = shift;
+    my $block = shift || '';
+    
+    my $template_output = $self->get_template_contents();
+    $template_output =~ s/(.*)(<!--.*(<$block>).-->)(.*)(<!--.*(<\/$block>).-->)(.*)/$4/sm;
+    return $template_output;
+    
+}
+
+sub process_blocks {
+
+    my $self            = shift;
+    my $template_output = shift;
+    my $namespace       = shift;
+    my $blocks          = shift;
+    
+    return $template_output unless defined $blocks;
+
+    my @blocks = split( ',', $blocks );
+
+    foreach my $t (@blocks) {
+        next unless $t;
+        $namespace->{ uc($t) } =~ s/\$([A-Z_0-9\.]+)/$namespace->{$1}/g;
+        $template_output =~
+s/(.*)(<!--.*(<$t>))(.*)((<\/$t>).-->)(.*)/$1 $namespace->{uc($t)} $7/sm;
+    }
+
+    return $template_output;
 }
 
 sub process_namespace {
