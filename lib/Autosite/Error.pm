@@ -3,6 +3,7 @@ package Autosite::Error;
 use strict;
 use warnings;
 use Carp qw(cluck carp croak);
+use 5.012_001;
 
 our $ERROR_DEBUG = 0;
 our $VERSION = '0.02';

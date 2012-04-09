@@ -7,9 +7,13 @@ use Moose;
 use Try::Tiny;
 use Autosite::Error;
 use IO::File;
+use 5.012_001;
+
+our $VERSION = '0.01';
 
 has 'cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
 has 'file' => ( is => 'rw', isa => 'Str' );
+has 'config' => (is => 'rw', isa => 'Autosite::Config', required => 0);
 
 sub render {
 
@@ -56,11 +60,13 @@ sub _from_cache {
     
     my $self = shift;
     
-    if ( defined $self->cache->{ $self->file }
+    if ( $self->_with_cache and defined $self->cache->{ $self->file }
         and $self->cache->{ $self->file } )
     {
         return $self->cache->{ $self->file };
     }
+    
+    return;
     
 }
 
@@ -86,11 +92,26 @@ sub _open_template {
 
     local ($/) = undef;
     my $contents = <$template>;
+    
+    if ( $self->_with_cache ) { 
 
-    $self->cache->{ $self->file } = $contents;
+        $self->cache->{ $self->file } = $contents;
+    
+    }
 
     return $contents;
 
+}
+
+sub _with_cache {
+    
+    my $self = shift;
+    
+    if ( not $self->config or ( $self->config and $self->config->templates_cache ) ) {
+        return 1;
+    }
+    
+    return 0;
 }
 
 1;
