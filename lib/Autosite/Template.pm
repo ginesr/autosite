@@ -22,6 +22,7 @@ has 'stash' => (
 );
 has 'file' => ( is => 'rw', isa => 'Str' );
 has 'config' => ( is => 'rw', isa => 'Autosite::Config', required => 0 );
+has '_block_cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
 
 sub render {
 
@@ -41,29 +42,52 @@ sub render {
         Autosite::Error->throw('invalid ref type in export_stash');
     }
 
-    my $template_output = $self->get_template_contents();
+    my $output = $self->get_template_contents();
 
     $namespace = $self->process_namespace($namespace);
     $namespace = $self->process_stash( $namespace, $export_stash );
 
-    $template_output = $self->process_include($template_output);
-    $template_output =
-      $self->process_blocks( $template_output, $namespace, $block_tags );
-    $template_output =~ s/\$([A-Z_0-9\.]+)/$namespace->{$1}/g;
+    $output = $self->process_include($output);
+    $output = $self->process_blocks( $output, $namespace, $block_tags );
 
-    return $template_output;
+    return $self->replace_in_template($output,$namespace);
 
 }
 
-sub read_block {
+sub replace_in_template {
     
+    my $self      = shift;
+    my $output    = shift || '';
+    my $namespace = shift || {};
+    my %replace   = ();
+
+    while ($output =~ /\$([A-Z_0-9\.]+)/gsm) {
+        $replace{$1} = $namespace->{$1} || '';
+    }
+    
+    $output =~ s/\$([A-Z_0-9\.]+)/$replace{$1}/g;
+    
+    return $output;
+    
+}
+
+sub read_block {
+
     my $self = shift;
     my $block = shift || '';
     
+    if (my $block_cached = $self->_block_is_cached($block) ) {
+        return $block_cached;
+    }
+
     my $template_output = $self->get_template_contents();
-    $template_output =~ s/(.*)(<!--.*(<$block>).-->)(.*)(<!--.*(<\/$block>).-->)(.*)/$4/sm;
-    return $template_output;
+    $template_output =~
+      s/(.*)(<!--.*(<$block>).-->)(.*)(<!--.*(<\/$block>).-->)(.*)/$4/sm;
     
+    $self->_block_cache->{$block} = $template_output;
+    
+    return $template_output;
+
 }
 
 sub process_blocks {
@@ -72,10 +96,23 @@ sub process_blocks {
     my $template_output = shift;
     my $namespace       = shift;
     my $blocks          = shift;
-    
-    return $template_output unless defined $blocks;
 
-    my @blocks = split( ',', $blocks );
+    if (not defined $blocks and not defined $self->_block_cache) { 
+        return $template_output;
+    }
+
+    my @blocks = ();
+    
+    if (defined $blocks) {
+        @blocks = split( ',', $blocks )
+    }
+
+    foreach my $n ( keys %{ $self->_block_cache } ) {
+        if (not exists $namespace->{ uc($n) } ) {
+            $namespace->{ uc($n) } = $self->_block_cache->{$n};
+            push @blocks, $n;
+        }
+    }
 
     foreach my $t (@blocks) {
         next unless $t;
@@ -155,12 +192,12 @@ sub get_template_contents {
     my $self = shift;
     my $file = shift || $self->file;
 
-    $file = $file->trim;
-
     if ( not $file ) {
         Autosite::Error->throw('missing file parameter');
     }
 
+    $file = $file->trim;
+    
     return $self->_open_template($file);
 
 }
@@ -258,6 +295,18 @@ sub _with_cache {
     }
 
     return 0;
+}
+
+sub _block_is_cached {
+    
+    my $self = shift;
+    my $block = shift;
+    
+    if (exists $self->_block_cache->{$block}) {
+        return $self->_block_cache->{$block};
+    }
+    
+    return;    
 }
 
 1;
