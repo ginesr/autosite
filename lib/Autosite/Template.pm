@@ -15,6 +15,7 @@ use 5.012_001;
 our $VERSION = '0.01';
 
 has 'cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
+has 'maps'  => ( is => 'rw', default => sub { return {} }, lazy => 1 );
 has 'stash' => (
     is      => 'rw',
     isa     => 'Maybe[ArrayRef]',
@@ -25,7 +26,12 @@ has 'file' => ( is => 'rw', isa => 'Str' );
 has 'config' => ( is => 'rw', isa => 'Autosite::Config', required => 0 );
 has '_block_cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
 has '_plugin_cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
-has 'persistent' => (is => 'rw', isa => 'Str', default => 'Autosite::Persistent::Cache', lazy => 1);
+has 'persistent' => (
+    is      => 'rw',
+    isa     => 'Str',
+    default => 'Autosite::Persistent::Cache',
+    lazy    => 1
+);
 
 sub render {
 
@@ -89,30 +95,6 @@ sub process_plugins {
 
     foreach my $p (@plugins) {
         $namespace = $self->_eval_plugin( $namespace, $p, $dir );
-    }
-
-    return $namespace;
-}
-
-sub _eval_plugin {
-
-    my $self        = shift;
-    my $namespace   = shift;
-    my $plugin_file = shift;
-    my $dir         = shift;
-    
-    if ( my $contents = $self->get_file_contents( $plugin_file, $dir ) ) {
-
-        my $code = eval($contents);
-
-        if ($@) {
-            warn $@ . 'in plugin ' . $plugin_file;
-        }
-        else {
-            if ( ref($code) eq 'Autosite::Template::Plugin' and $code->active == 1 ) {
-                $namespace->{ $code->variable } = $code->content;
-            }
-        }
     }
 
     return $namespace;
@@ -211,16 +193,16 @@ sub process_include {
     while ( $template =~ m/<!--\s*?{\s*?include:(.*?)}\s*?-->/g ) {
 
         my $variable = $1;
-
-        # is it a var or a file?
-        if ( $variable =~ /^\$/ ) {
-
-            # look file name in DB
-        }
-
         $variable = $variable->trim;
 
-        my $include = $self->get_file_contents($variable);
+        my $include_file = $variable;
+
+        if ( my $var_is_mapped = $self->_include_in_map($variable) ) {
+            $include_file = $var_is_mapped;
+        }
+
+        my $include = $self->get_file_contents($include_file);
+
         $includes->{$variable} =
           $self->_include_comments( $include, $variable );
 
@@ -296,8 +278,8 @@ sub _from_cache {
     my $file = shift || $self->file;
 
     $file = $self->_prefix_for_cache($file);
-    
-    my $using_cache = $self->_with_cache; 
+
+    my $using_cache = $self->_with_cache;
 
     if (    $using_cache
         and exists $self->cache->{$file}
@@ -305,9 +287,12 @@ sub _from_cache {
     {
         return $self->cache->{$file};
     }
-    
-    if ($using_cache and defined $self->config and $self->config->persistent_cache) {
-        return $self->persistent->get($file);        
+
+    if (    $using_cache
+        and defined $self->config
+        and $self->config->persistent_cache )
+    {
+        return $self->persistent->get($file);
     }
 
     return;
@@ -351,9 +336,9 @@ sub _store_in_cache {
 
         $key = $self->_prefix_for_cache($key);
         $self->cache->{$key} = $contents;
-        
-        if (defined $self->config and $self->config->persistent_cache) {
-            $self->persistent->set($key,$contents);
+
+        if ( defined $self->config and $self->config->persistent_cache ) {
+            $self->persistent->set( $key, $contents );
         }
 
         return $contents;
@@ -424,4 +409,41 @@ sub _plugins_dir {
     return;
 }
 
+sub _eval_plugin {
+
+    my $self        = shift;
+    my $namespace   = shift;
+    my $plugin_file = shift;
+    my $dir         = shift;
+
+    if ( my $contents = $self->get_file_contents( $plugin_file, $dir ) ) {
+
+        my $code = eval($contents);
+
+        if ($@) {
+            warn $@ . 'in plugin ' . $plugin_file;
+        }
+        else {
+            if ( ref($code) eq 'Autosite::Template::Plugin'
+                and $code->active == 1 )
+            {
+                $namespace->{ $code->variable } = $code->content;
+            }
+        }
+    }
+
+    return $namespace;
+}
+
+sub _include_in_map {
+    
+    my $self     = shift;
+    my $variable = shift;
+    
+    if ( defined $self->maps and exists $self->maps->{$variable} ) {
+        return $self->maps->{$variable};
+    }
+    return;
+    
+}
 1;
