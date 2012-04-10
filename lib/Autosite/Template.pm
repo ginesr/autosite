@@ -32,6 +32,10 @@ has 'persistent' => (
     default => 'Autosite::Persistent::Cache',
     lazy    => 1
 );
+has 'namespace' => ( is => 'rw',, isa => 'Maybe[HashRef]', default => sub { return {} }, lazy => 1 );
+has 'export_stash' => ( is => 'rw', isa => 'Maybe[ArrayRef]', default => sub { return [] }, lazy => 1 );
+has 'block_tags' => ( is => 'rw', isa => 'Maybe[Str]' );
+has 'output' => ( is => 'rw', isa => 'Maybe[Str]' );
 
 sub render {
 
@@ -39,7 +43,6 @@ sub render {
     my $namespace    = shift;
     my $export_stash = shift || [];
     my $block_tags   = shift;
-    my $write_to     = shift;         # file handle, string
 
     if ( not $namespace ) {
         Autosite::Error->throw('missing namespace parameter');
@@ -51,24 +54,31 @@ sub render {
         Autosite::Error->throw('invalid ref type in export_stash');
     }
 
+    $self->namespace($namespace);
+    $self->export_stash($export_stash);
+    $self->block_tags($block_tags);
+
     my $output = $self->get_file_contents();
+    
+    $self->output($output);
 
-    $namespace = $self->process_plugins($namespace);
-    $namespace = $self->process_namespace($namespace);
-    $namespace = $self->process_stash( $namespace, $export_stash );
-
-    $output = $self->process_include($output);
-    $output = $self->process_blocks( $output, $namespace, $block_tags );
-
-    return $self->replace_in_template( $output, $namespace );
+    $self->process_plugins();
+    $self->process_namespace();
+    $self->process_stash();
+    $self->process_include();
+    $self->process_blocks();
+    
+    $self->replace_in_template();
+    
+    return $self->output;
 
 }
 
 sub replace_in_template {
 
     my $self      = shift;
-    my $output    = shift || '';
-    my $namespace = shift || {};
+    my $output    = shift || $self->output;
+    my $namespace = shift || $self->namespace;
     my %replace   = ();
 
     while ( $output =~ /\$([A-Z_0-9\.]+)/gsm ) {
@@ -76,6 +86,8 @@ sub replace_in_template {
     }
 
     $output =~ s/\$([A-Z_0-9\.]+)/$replace{$1}/g;
+    
+    $self->output($output);
 
     return $output;
 
@@ -84,7 +96,7 @@ sub replace_in_template {
 sub process_plugins {
 
     my $self      = shift;
-    my $namespace = shift;
+    my $namespace = shift || $self->namespace;
 
     if ( not $self->config ) {
         return $namespace;
@@ -122,9 +134,9 @@ sub read_block {
 sub process_blocks {
 
     my $self            = shift;
-    my $template_output = shift;
-    my $namespace       = shift;
-    my $blocks          = shift;
+    my $template_output = shift || $self->output;
+    my $namespace       = shift || $self->namespace;
+    my $blocks          = shift || $self->block_tags;
 
     if ( not defined $blocks and not defined $self->_block_cache ) {
         return $template_output;
@@ -149,14 +161,14 @@ sub process_blocks {
         $template_output =~
 s/(.*)(<!--.*(<$t>))(.*)((<\/$t>).-->)(.*)/$1 $namespace->{uc($t)} $7/sm;
     }
-
+    $self->output($template_output);
     return $template_output;
 }
 
 sub process_namespace {
 
     my $self      = shift;
-    my $namespace = shift;
+    my $namespace = shift || $self->namespace;
 
     foreach ( keys %{$namespace} ) {
         $namespace->{ uc($_) } =~ s/\$([A-Z_0-9\.]+)/$namespace->{$1}/g;
@@ -168,8 +180,8 @@ sub process_namespace {
 sub process_stash {
 
     my $self         = shift;
-    my $namespace    = shift;
-    my $export_stash = shift;
+    my $namespace    = shift || $self->namespace;
+    my $export_stash = shift || $self->export_stash;
 
     foreach my $exp ( @{$export_stash} ) {
         foreach my $stashed ( @{ $self->stash } ) {
@@ -187,7 +199,7 @@ sub process_stash {
 sub process_include {
 
     my $self     = shift;
-    my $template = shift;
+    my $template = shift || $self->output;
     my $includes = {};
 
     while ( $template =~ m/<!--\s*?{\s*?include:(.*?)}\s*?-->/g ) {
@@ -212,6 +224,8 @@ sub process_include {
         $template =~
           s/<!--\s*?{\s*?include:\s*?$_\s*?}\s*?-->/$includes->{$_}/gsm;
     }
+    
+    $self->output($template);
 
     return $template;
 }
