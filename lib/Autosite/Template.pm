@@ -7,6 +7,7 @@ use Moose;
 use Try::Tiny;
 use Autosite::Error;
 use Autosite::String::Trim;
+use Autosite::Persistent::Cache;
 use IO::File;
 use Data::Dumper qw(Dumper);
 use 5.012_001;
@@ -24,6 +25,7 @@ has 'file' => ( is => 'rw', isa => 'Str' );
 has 'config' => ( is => 'rw', isa => 'Autosite::Config', required => 0 );
 has '_block_cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
 has '_plugin_cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
+has 'persistent' => (is => 'rw', isa => 'Str', default => 'Autosite::Persistent::Cache', lazy => 1);
 
 sub render {
 
@@ -294,12 +296,18 @@ sub _from_cache {
     my $file = shift || $self->file;
 
     $file = $self->_prefix_for_cache($file);
+    
+    my $using_cache = $self->_with_cache; 
 
-    if (    $self->_with_cache
-        and defined $self->cache->{$file}
+    if (    $using_cache
+        and exists $self->cache->{$file}
         and $self->cache->{$file} )
     {
         return $self->cache->{$file};
+    }
+    
+    if ($using_cache and defined $self->config and $self->config->persistent_cache) {
+        return $self->persistent->get($file);        
     }
 
     return;
@@ -343,6 +351,10 @@ sub _store_in_cache {
 
         $key = $self->_prefix_for_cache($key);
         $self->cache->{$key} = $contents;
+        
+        if (defined $self->config and $self->config->persistent_cache) {
+            $self->persistent->set($key,$contents);
+        }
 
         return $contents;
 

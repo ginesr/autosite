@@ -16,5 +16,6 @@ has 'templates_dir' => (is => 'rw', isa => 'Str', default => '' );
 has 'plugins_compile' => (is => 'rw', isa => 'Bool', default => 0, lazy => 1);
 has 'plugins_list' => (is => 'rw', isa => 'Str', default => '' );
 has 'plugins_folder' => (is => 'rw', isa => 'Str', default => '' );
+has 'persistent_cache' => (is => 'rw', isa => 'Bool', default => 0, lazy => 1);
 
 1;
