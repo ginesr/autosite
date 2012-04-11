@@ -58,12 +58,6 @@ sub render {
     if ( not $namespace ) {
         Autosite::Error->throw('missing namespace parameter');
     }
-    if ( $namespace and ref($namespace) ne 'HASH' ) {
-        Autosite::Error->throw('invalid ref type in namespace');
-    }
-    if ( $export_stash and ref($export_stash) ne 'ARRAY' ) {
-        Autosite::Error->throw('invalid ref type in export_stash');
-    }
 
     $self->namespace($namespace);
     $self->export_stash($export_stash);

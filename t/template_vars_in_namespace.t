@@ -13,4 +13,4 @@ $template->file('templates/test1.htm');
 
 my $output = $template->render( { TEST => "some text \$WOOT", WOOT => 'woot!' } );
 
-like( $output, qr/Replace some text woot!/, 'Replace on namspace' );
+like( $output, qr/Replace some text woot!/, 'Replace on namespace' );
