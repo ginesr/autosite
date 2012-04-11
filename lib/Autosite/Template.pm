@@ -32,10 +32,21 @@ has 'persistent' => (
     default => 'Autosite::Persistent::Cache',
     lazy    => 1
 );
-has 'namespace' => ( is => 'rw',, isa => 'Maybe[HashRef]', default => sub { return {} }, lazy => 1 );
-has 'export_stash' => ( is => 'rw', isa => 'Maybe[ArrayRef]', default => sub { return [] }, lazy => 1 );
+has 'namespace' => (
+    is => 'rw',
+    ,
+    isa     => 'Maybe[HashRef]',
+    default => sub { return {} },
+    lazy    => 1
+);
+has 'export_stash' => (
+    is      => 'rw',
+    isa     => 'Maybe[ArrayRef]',
+    default => sub { return [] },
+    lazy    => 1
+);
 has 'block_tags' => ( is => 'rw', isa => 'Maybe[Str]' );
-has 'output' => ( is => 'rw', isa => 'Maybe[Str]' );
+has 'output'     => ( is => 'rw', isa => 'Maybe[Str]' );
 
 sub render {
 
@@ -58,23 +69,20 @@ sub render {
     $self->export_stash($export_stash);
     $self->block_tags($block_tags);
 
-    my $output = $self->get_file_contents();
-    
-    $self->output($output);
+    $self->output( $self->get_file_contents() );
 
     $self->process_plugins();
     $self->process_namespace();
     $self->process_stash();
     $self->process_include();
     $self->process_blocks();
-    
-    $self->replace_in_template();
-    
+    $self->process_template();
+
     return $self->output;
 
 }
 
-sub replace_in_template {
+sub process_template {
 
     my $self      = shift;
     my $output    = shift || $self->output;
@@ -86,7 +94,7 @@ sub replace_in_template {
     }
 
     $output =~ s/\$([A-Z_0-9\.]+)/$replace{$1}/g;
-    
+
     $self->output($output);
 
     return $output;
@@ -95,7 +103,7 @@ sub replace_in_template {
 
 sub process_plugins {
 
-    my $self      = shift;
+    my $self = shift;
     my $namespace = shift || $self->namespace;
 
     if ( not $self->config ) {
@@ -167,7 +175,7 @@ s/(.*)(<!--.*(<$t>))(.*)((<\/$t>).-->)(.*)/$1 $namespace->{uc($t)} $7/sm;
 
 sub process_namespace {
 
-    my $self      = shift;
+    my $self = shift;
     my $namespace = shift || $self->namespace;
 
     foreach ( keys %{$namespace} ) {
@@ -224,7 +232,7 @@ sub process_include {
         $template =~
           s/<!--\s*?{\s*?include:\s*?$_\s*?}\s*?-->/$includes->{$_}/gsm;
     }
-    
+
     $self->output($template);
 
     return $template;
@@ -450,14 +458,14 @@ sub _eval_plugin {
 }
 
 sub _include_in_map {
-    
+
     my $self     = shift;
     my $variable = shift;
-    
+
     if ( defined $self->maps and exists $self->maps->{$variable} ) {
         return $self->maps->{$variable};
     }
     return;
-    
+
 }
 1;
