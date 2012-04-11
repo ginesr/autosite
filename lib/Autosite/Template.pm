@@ -3,7 +3,7 @@ package Autosite::Template;
 use strict;
 use warnings;
 use autodie;
-use Moose;
+use Mouse;
 use Try::Tiny;
 use Autosite::Error;
 use Autosite::String::Trim;

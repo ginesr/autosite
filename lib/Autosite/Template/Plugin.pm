@@ -3,7 +3,7 @@ package Autosite::Template::Plugin;
 use strict;
 use warnings;
 use autodie;
-use Moose;
+use Mouse;
 use Try::Tiny;
 use Autosite::Error;
 use 5.012_001;
