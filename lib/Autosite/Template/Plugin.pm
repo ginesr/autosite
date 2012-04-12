@@ -14,4 +14,6 @@ has 'active' => (is => 'rw', isa => 'Bool', default => 0, lazy => 1);
 has 'variable' => (is => 'rw', isa => 'Str', default => '' );
 has 'content' => (is => 'rw', isa => 'Str', default => '' );
 
+__PACKAGE__->meta->make_immutable();
+
 1;

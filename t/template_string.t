@@ -10,9 +10,18 @@ my $template = Autosite::Template->new;
 
 throws_ok( sub { $template->render() },
     'Autosite::Error', 'Missing parameters' );
+    
+my $string = <<HTML;
+<html>
+<head></head>
+<body>
+<p>Replace \$TEST</p>
+<body>
+</html>
+HTML
 
-$template->file('templates/test1.htm');
+$template->tmpl(\$string);
 
 my $output = $template->render( { TEST => 'some text' } );
 
-like( $output, qr/Replace some text/, 'Replace one var' );
+like( $output, qr/Replace some text/, 'Template is a string' );

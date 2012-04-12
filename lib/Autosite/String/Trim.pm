@@ -1,5 +1,6 @@
 package Autosite::String::Trim;
 
+use strict;
 use base qw(autobox);
 
 sub import {
@@ -9,6 +10,7 @@ sub import {
 
 package Autosite::String::Trim::Scalar;
 
+use strict;
 sub trim {
     my $string = shift;
     $string =~ s/^\s+//;

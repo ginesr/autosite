@@ -22,6 +22,7 @@ has 'stash' => (
     default => sub { return [] },
     lazy    => 1
 );
+has 'tmpl' => ( is => 'rw', isa => 'Maybe[ScalarRef]' );
 has 'file' => ( is => 'rw', isa => 'Str' );
 has 'config' => ( is => 'rw', isa => 'Autosite::Config', required => 0 );
 has '_block_cache' => ( is => 'rw', default => sub { return {} }, lazy => 1 );
@@ -237,6 +238,10 @@ sub get_file_contents {
     my $self = shift;
     my $file = shift || $self->file;
     my $dir  = shift;
+    
+    if (my $string = $self->tmpl) {
+        return ${ $string };
+    }
 
     if ( not $file ) {
         Autosite::Error->throw('missing file parameter');
@@ -462,4 +467,7 @@ sub _include_in_map {
     return;
 
 }
+
+__PACKAGE__->meta->make_immutable();
+
 1;
