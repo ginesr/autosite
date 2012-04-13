@@ -8,29 +8,41 @@ use HTML::Entities qw();
 use HTML::Scrubber;
 use Scalar::Util qw(looks_like_number);
 use Email::Valid;
+use feature qw(switch);
 use 5.012_001;
 
-use overload '""' => 'stringify', 
+use overload
+  '""'     => 'stringify',
   '!='     => \&_not_equals,
   'ne'     => \&_not_equals,
   '=='     => \&_equals_than,
   'eq'     => \&_equals_than,
-fallback => 1;
+  fallback => 1;
 
 sub new {
 
-    my $classname = shift;
-    my @args      = @_;
-    my $class     = ref($classname) || $classname;
+    my $classname  = shift;
+    my @args       = @_;
+    my $class      = ref($classname) || $classname;
+    my $ref        = ref( $args[0] );
+    my $args_count = scalar(@args);
 
-    if ( scalar(@args) == 1 and not ref $args[0]) {
+    if ( $args_count == 1 and not $ref ) {
+
+        # single argument asume is the value :)
         @args = ( value => $args[0] );
     }
-    elsif ( scalar(@args) == 1 and ref($args[0]) eq __PACKAGE__) {
+    elsif ( $args_count == 1 and $ref eq 'ARRAY' ) {
+        given ( scalar @{ $args[0] } ) {
+            when (1) { @args = ( value => shift $args[0] ) }
+            default  { @args = ( multi => \@{$args[0]}, value => $args[0][-1] ) };
+        }
+    }
+    elsif ( $args_count == 1 and $ref eq __PACKAGE__ ) {
         my $cloned = $args[0]->value;
         @args = ( value => $cloned );
     }
-    elsif ( ( scalar(@args) % 2 ) == 1 ) {
+    elsif ( ( $args_count % 2 ) == 1 ) {
         croak 'pass arguments as pairs of keys => values';
     }
 
@@ -108,9 +120,31 @@ sub value_trimmed {
 
 }
 
-sub value {
+sub is_multiple {
+    my $self = shift;
+    return (exists $self->{multi}) ? 1 : 0;
+}
 
-    return shift->{value};
+sub at {
+    my $self = shift;
+    my $index = shift;
+    
+    if ( $self->is_multiple ) {
+        return $self->{multi}->[$index];
+    }
+    return $self->value;
+}
+
+sub value {
+    
+    my $self = shift;
+    my $val = $self->{value};
+    
+    if ( $self->is_multiple ) {
+        return wantarray ? @{ $self->{multi} } : $val; 
+    }
+    
+    return $val;
 
 }
 
@@ -144,12 +178,12 @@ sub decoded {
 
 sub _equals_than {
     my ( $self, $another_param ) = @_;
-    return (  $self->value eq $another_param->value ) || 0;
+    return ( $self->value eq $another_param->value ) || 0;
 }
 
 sub _not_equals {
     my ( $self, $another_param ) = @_;
-    return (  $self->value eq $another_param->value ) || 1;
+    return ( $self->value eq $another_param->value ) || 1;
 }
 
 1;
