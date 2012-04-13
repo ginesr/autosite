@@ -80,7 +80,7 @@ sub render {
         INTERPOLATE  => 1,
     }) || Autosite::Error->throw( $Template::ERROR );
     
-    $tt->process(\$self->output, $self->process_namespace, \$output)
+    $tt->process(\$self->output, $self->namespace, \$output)
     || Autosite::Error->throw( $tt->error() );
 
     return $output;
