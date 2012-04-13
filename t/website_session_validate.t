@@ -3,37 +3,18 @@
 use strict;
 use warnings;
 use Website::Session;
-use Test::More tests => 5;
+use Test::More tests => 3;
 use Test::Exception;
 
-my $default = Website::Session->new;
-my $crypted = $default->create('whatever');
-
-ok( $crypted, 'Using default key' );
-
-my $session = Website::Session->new;
-$session->data->{username} = 'anonymous';
-$session->key('super secret key');
-
-my $for_cookie = $session->create('my_site_session_id');
-
-ok( $for_cookie, 'Returned encrypted string to use as session value' );
+my $cookie_value =
+'U2FsdGVkX18-MZsoClIu4b9SGKl7BuiYcNVnmPnBQRFKT4TYG3ExyoCovKXHZqtep*acaOWYgwhfjPohFvDW3bdHeLg1H3bZXVIHnwwU14APUZBSsWZSjE1XhxcFAF5ardWqRnuQoYv0LD2cM2VtqInPujo-BbPT*gVYIj9B40Hh8uS*aAHwEcIeba8fwzof';
 
 my $session_check = Website::Session->new;
-$session_check->key('super secret key');
+my $obj           = $session_check->validate($cookie_value);
 
-my $obj = $session_check->validate($for_cookie);
+is( $obj->id, 'my_site_session_id',
+    'Session valid' );
 
-is( $obj->{id}, 'my_site_session_id',
-    'Session passes verification after decrypt' );
+is( $obj->data->{'username'}, 'anonymous', 'Recover data from session' );
+is( $obj->data->{'foo'}, 'bar', 'More data from session' );
 
-my $session_other = Website::Session->new;
-my $invalid       = $session_other->validate('will fail is not valid');
-
-is( $invalid, undef, 'Not a valid session' );
-
-my $session_diff = Website::Session->new;
-$session_diff->key('if you change the key it wont work');
-
-my $invalid_key = $session_diff->validate($for_cookie);
-is( $invalid_key, undef, 'Not a valid key used when decrypt' );
