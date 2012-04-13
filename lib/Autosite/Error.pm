@@ -3,7 +3,7 @@ package Autosite::Error;
 use strict;
 use warnings;
 use Carp qw(cluck carp croak);
-use Class::Accessor::Fast "antlers";
+use Class::Accessor::Fast qw(antlers);
 use 5.012_001;
 
 use overload '""' => \&stringify, fallback => 1;
