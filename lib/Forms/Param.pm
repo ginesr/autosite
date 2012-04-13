@@ -35,6 +35,22 @@ sub new {
 
 }
 
+sub from_cgi_new {
+
+    my $classname   = shift;
+    my $cgi_request = shift;
+    
+    my @param = $cgi_request->param;
+    my %hash  = ();
+
+    foreach (@param) {
+        $hash{$_} = [ $cgi_request->param($_) ];
+    }
+
+    return $classname->new(%hash);    
+
+}
+
 sub from_plack_new {
 
     my $classname     = shift;

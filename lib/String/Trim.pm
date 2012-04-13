@@ -1,16 +1,17 @@
-package Autosite::String::Trim;
+package String::Trim;
 
 use strict;
 use base qw(autobox);
 
 sub import {
     my $class = shift;
-    $class->SUPER::import( STRING => 'Autosite::String::Trim::Scalar' );
+    $class->SUPER::import( STRING => 'String::Trim::Scalar' );
 }
 
-package Autosite::String::Trim::Scalar;
+package String::Trim::Scalar;
 
 use strict;
+
 sub trim {
     my $string = shift;
     $string =~ s/^\s+//;

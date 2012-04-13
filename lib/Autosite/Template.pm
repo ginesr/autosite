@@ -6,7 +6,7 @@ use autodie;
 use Mouse;
 use Try::Tiny;
 use Autosite::Error;
-use Autosite::String::Trim;
+use String::Trim;
 use Autosite::Persistent::Cache;
 use IO::File;
 use Data::Dumper qw(Dumper);
