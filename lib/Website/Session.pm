@@ -15,15 +15,17 @@ has 'id'   => ( is => 'rw' );
 has 'key'  => ( is => 'rw' );
 has 'data' => ( is => 'rw' );
 
+use constant KEY => 'z6g@AJoIi$LfasQg*QD3rk#sUbST/8JISPxuXW&sgmXrNFq4%xy0wzQbe'; # must be configurable
+
 sub new {
     my ($class) = @_;
-    return bless( { id => '', key => '', data => {} }, $class );
+    return bless( { id => '', key => undef, data => {} }, $class );
 }
 
 sub create {
 
     my $self = shift;
-    my $id   = shift;
+    my $id   = shift || die 'Can\'t work with empty string';
 
     $self->id($id);    # usually the cookie name for your site
 
@@ -51,16 +53,14 @@ sub validate {
 sub cipher {
 
     my $self = shift;
-    my $key  = 'ra=nd*omju%nk89&45jkdnd20';    # must be configurable
+    my $key  = KEY;
 
-    $key = $self->key if $self->key;
+    $key = $self->key if defined $self->key;
 
-    my $cipher = Crypt::CBC->new(
+    return Crypt::CBC->new(
         -key    => $key,
         -cipher => 'Blowfish',
     );
-
-    return $cipher;
 
 }
 
@@ -72,9 +72,9 @@ sub _encrypt {
     my $crc32 = String::CRC32::crc32($plain_text);
 
     my $res = MIME::Base64::encode(
-        $self->cipher->encrypt( pack( 'La*', $crc32, $plain_text ) ), q{} );
+        $self->cipher->encrypt( pack( 'La*', $crc32, $plain_text ) ), "" );
 
-    $res =~ tr{=+/}{_*-};    #Base64
+    $res =~ tr{=+/}{_*-};
 
     return $res;
 }
@@ -88,6 +88,7 @@ sub _decrypt {
 
     my ( $crc32, $plain_text ) = unpack "La*",
       $self->cipher->decrypt( MIME::Base64::decode($cookie) );
+      
     return $crc32 == String::CRC32::crc32($plain_text) ? $plain_text : undef;
 }
 

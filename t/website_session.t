@@ -3,8 +3,13 @@
 use strict;
 use warnings;
 use Website::Session;
-use Test::More tests => 4;
+use Test::More tests => 5;
 use Test::Exception;
+
+my $default = Website::Session->new;
+my $crypted = $default->create('whatever');
+
+ok( $crypted, 'Using default key' );
 
 my $session = Website::Session->new;
 $session->data->{username} = 'anonymous';
