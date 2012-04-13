@@ -2,13 +2,20 @@ package Autosite::Param::Field;
 
 use strict;
 use warnings;
+use autodie;
 use Carp;
 use HTML::Entities qw();
 use HTML::Scrubber;
 use Scalar::Util qw(looks_like_number);
 use Email::Valid;
+use 5.012_001;
 
-use overload '""' => 'stringify', fallback => 1;
+use overload '""' => 'stringify', 
+  '!='     => \&_not_equals,
+  'ne'     => \&_not_equals,
+  '=='     => \&_equals_than,
+  'eq'     => \&_equals_than,
+fallback => 1;
 
 sub new {
 
@@ -133,6 +140,16 @@ sub decoded {
 
     return HTML::Entities::decode_entities( shift->value );
 
+}
+
+sub _equals_than {
+    my ( $self, $another_param ) = @_;
+    return (  $self->value eq $another_param->value ) || 0;
+}
+
+sub _not_equals {
+    my ( $self, $another_param ) = @_;
+    return (  $self->value eq $another_param->value ) || 1;
 }
 
 1;

@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 17;
+use Test::More tests => 19;
 use Test::Exception;
 use Autosite::Param::Field;
 
@@ -53,3 +53,11 @@ my $email       = 'test@server.com';
 my $email_field = Autosite::Param::Field->new($email);
 
 is( $email_field->is_like_email, 1, 'Is an email' );
+
+my $one_param   = Autosite::Param::Field->new('same thing');
+my $other_param = Autosite::Param::Field->new('same thing');
+my $third_param = Autosite::Param::Field->new('not same thing');
+
+cmp_ok( $one_param, 'eq', $other_param, 'Same content' );
+cmp_ok( $one_param, 'ne', $third_param, 'Not same instance' )
+  ;
