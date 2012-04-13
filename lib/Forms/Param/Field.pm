@@ -1,4 +1,4 @@
-package Autosite::Param::Field;
+package Forms::Param::Field;
 
 use strict;
 use warnings;

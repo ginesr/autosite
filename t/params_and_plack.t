@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More tests => 8;
 use Test::Exception;
-use Autosite::Param;
+use Forms::Param;
 use Plack::Request;
 
 my $env = {
@@ -24,7 +24,7 @@ my $req = Plack::Request->new($env);
 
 is( $req->param('foo'), 'bar', 'Param exists in plack' );
 
-my $params = Autosite::Param->from_plack_new($req);
+my $params = Forms::Param->from_plack_new($req);
 
 is( $params->size,           3,     'Two params' );
 is( $params->is_empty,       undef, 'Not empty' );

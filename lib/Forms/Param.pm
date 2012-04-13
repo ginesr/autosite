@@ -1,11 +1,11 @@
 
-package Autosite::Param;
+package Forms::Param;
 
 use strict;
 use warnings;
 use Carp;
 use base qw(Class::Accessor::Fast);
-use Autosite::Param::Field;
+use Forms::Param::Field;
 use 5.012_001;
 
 sub new {
@@ -28,7 +28,7 @@ sub new {
     bless $self, $class;
 
     foreach (@fields) {
-        $self->{$_} = Autosite::Param::Field->new( $self->$_ );
+        $self->{$_} = Forms::Param::Field->new( $self->$_ );
     }
 
     return $self;

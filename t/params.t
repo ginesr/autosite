@@ -4,9 +4,9 @@ use strict;
 use warnings;
 use Test::More tests => 11;
 use Test::Exception;
-use Autosite::Param;
+use Forms::Param;
 
-my $params = Autosite::Param->new(
+my $params = Forms::Param->new(
     email    => 'mail@test.com',
     name     => 'Foo',
     lastname => 'Bar'
