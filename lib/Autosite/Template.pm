@@ -10,6 +10,7 @@ use Autosite::String::Trim;
 use Autosite::Persistent::Cache;
 use IO::File;
 use Data::Dumper qw(Dumper);
+use Template;
 use 5.012_001;
 
 our $VERSION = '0.01';
@@ -72,8 +73,17 @@ sub render {
     $self->process_include();
     $self->process_blocks();
     $self->process_template();
+    
+    my $output = '';
+    my $tt = Template->new({
+        INCLUDE_PATH => $self->_template_dir || './',
+        INTERPOLATE  => 1,
+    }) || Autosite::Error->throw( $Template::ERROR );
+    
+    $tt->process(\$self->output, $self->process_namespace, \$output)
+    || Autosite::Error->throw( $tt->error() );
 
-    return $self->output;
+    return $output;
 
 }
 
