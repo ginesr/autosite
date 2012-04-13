@@ -40,6 +40,8 @@ sub from_cgi_new {
     my $classname   = shift;
     my $cgi_request = shift;
     
+    die 'not CGI class' if ref($cgi_request) ne 'CGI';
+    
     my @param = $cgi_request->param;
     my %hash  = ();
 
@@ -55,6 +57,8 @@ sub from_plack_new {
 
     my $classname     = shift;
     my $plack_request = shift;
+    
+    die 'not Plack class' if ref($plack_request) ne 'Plack::Request';
 
     my @param = $plack_request->param;
     my %hash  = ();

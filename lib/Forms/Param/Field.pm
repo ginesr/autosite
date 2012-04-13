@@ -33,10 +33,14 @@ sub new {
         @args = ( value => $args[0] );
     }
     elsif ( $args_count == 1 and $ref eq 'ARRAY' ) {
+
         given ( scalar @{ $args[0] } ) {
             when (1) { @args = ( value => shift $args[0] ) }
-            default  { @args = ( multi => \@{$args[0]}, value => $args[0][-1] ) };
+            default {
+                @args = ( multi => \@{ $args[0] }, value => $args[0][-1] );
+            };
         }
+
     }
     elsif ( $args_count == 1 and $ref eq __PACKAGE__ ) {
         my $cloned = $args[0]->value;
@@ -122,13 +126,13 @@ sub value_trimmed {
 
 sub is_multiple {
     my $self = shift;
-    return (exists $self->{multi}) ? 1 : 0;
+    return ( exists $self->{multi} ) ? 1 : 0;
 }
 
 sub at {
-    my $self = shift;
+    my $self  = shift;
     my $index = shift;
-    
+
     if ( $self->is_multiple ) {
         return $self->{multi}->[$index];
     }
@@ -136,14 +140,14 @@ sub at {
 }
 
 sub value {
-    
+
     my $self = shift;
-    my $val = $self->{value};
-    
+    my $val  = $self->{value};
+
     if ( $self->is_multiple ) {
-        return wantarray ? @{ $self->{multi} } : $val; 
+        return wantarray ? @{ $self->{multi} } : $val;
     }
-    
+
     return $val;
 
 }

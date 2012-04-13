@@ -27,7 +27,7 @@ foreach (keys %{$env}) {
 
 my $req = CGI->new;
 
-is( $req->param('foo'), 'bar', 'Param exists in plack' );
+is( $req->param('foo'), 'bar', 'Param exists in CGI' );
 
 my $params = Forms::Param->from_cgi_new($req);
 
